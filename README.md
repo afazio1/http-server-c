@@ -1,11 +1,17 @@
 # HTTP Server in C
 
-## Build + Run
+## Build
 
 ```sh
 make build
 ```
 
+## Run
 ```sh
 make run
+```
+
+## Run with GDB
+```sh
+make debug
 ```
