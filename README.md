@@ -4,5 +4,8 @@
 
 ```sh
 make build
+```
+
+```sh
 make run
 ```
