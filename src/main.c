@@ -61,34 +61,35 @@ void signal_handler(int signum) {
 }
 
 int main() {
-  int status, yes;
-  struct addrinfo hints = {};
-  struct addrinfo *servinfo, *winner; // will point to results
-  char ipstr[INET6_ADDRSTRLEN];
-  struct sockaddr_storage their_addr;
-  socklen_t addr_size;
-  int new_fd;
 
+  struct addrinfo hints = {};
   memset(&hints, 0, sizeof(hints));
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE;
+
+  int status;
+  struct addrinfo *servinfo, *winner; // will point to results
 
   if ((status = getaddrinfo(NULL, MY_PORT, &hints, &servinfo)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
     return 1;
   }
+
   if (servinfo == NULL) {
     printf("getaddrinfo: could not find result");
     return 1;
   }
+
   winner = servinfo;
 
+  char ipstr[INET6_ADDRSTRLEN];
   addr_to_str(servinfo->ai_addr, ipstr);
 
   // make a socket, bind it, listen on it
   sockfd = socket(winner->ai_family, winner->ai_socktype, winner->ai_protocol);
 
   // allows us to reuse ip address and port 
+  int yes;
   if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
     printf("setsockopt: error");
     return 1;
@@ -98,12 +99,14 @@ int main() {
     printf("bind: error");
     return 1;
   }
+
   freeaddrinfo(servinfo);
 
   if (listen(sockfd, QUEUE_SIZE) == -1) {
     printf("listen: error");
     return 1;
   }
+
   printf("listening on %s:%s\n", ipstr, MY_PORT);
   fflush(NULL);
 
@@ -117,15 +120,19 @@ int main() {
     perror("Error setting up SIGCHLD handler");
     return 1;
   }
+
   if (sigaction(SIGTERM, &sa, NULL) == -1) {
     perror("Error setting up SIGTERM handler");
     return 1;
   }
 
   // accept incoming connections
+  struct sockaddr_storage their_addr;
+
   while(1) {
-    addr_size = sizeof their_addr;
-    new_fd = accept(sockfd, (struct sockaddr *) &their_addr, &addr_size);
+    socklen_t addr_size = sizeof their_addr;
+    int new_fd = accept(sockfd, (struct sockaddr *) &their_addr, &addr_size);
+
     if (new_fd == -1) {
       if (errno == EINTR) {
         // If accept() was interrupted by a signal, retry
@@ -134,6 +141,7 @@ int main() {
       perror("accept");
       continue;
     }
+
     struct sockaddr * peer_addr;
     socklen_t addr_len = sizeof(struct sockaddr);
     getpeername(new_fd, peer_addr, &addr_len);
@@ -158,8 +166,8 @@ int main() {
       close(new_fd);
       exit(0);
     }
+
     close(new_fd);
   }
   return 0;
 }
-
