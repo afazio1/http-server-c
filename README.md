@@ -1,28 +1,23 @@
 # HTTP Server in C
 
+## Start Docker Container
+```sh
+./scripts/docker.sh --pull # Build docker image
+./scripts/docker.sh # Run docker container
+```
 ## Build
 
 ```sh
-make build
+cmake .. # generate build system
+make # build + compile
 ```
 
 ## Run
 ```sh
-make run
-```
-
-## Run with GDB
-```sh
-make debug
+./web_server
 ```
 
 ## Connect to Server
 ```sh
 nc localhost 6969
-```
-
-## Stop Container
-```sh
-docker ps # get running containers
-docker stop <container_id> # send SIGTERM signal to docker container
 ```

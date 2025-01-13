@@ -131,9 +131,9 @@ int main() {
 
   while(1) {
     socklen_t addr_size = sizeof their_addr;
-    int new_fd = accept(sockfd, (struct sockaddr *) &their_addr, &addr_size);
+    int new_sockfd = accept(sockfd, (struct sockaddr *) &their_addr, &addr_size);
 
-    if (new_fd == -1) {
+    if (new_sockfd == -1) {
       if (errno == EINTR) {
         // If accept() was interrupted by a signal, retry
         continue;
@@ -144,7 +144,7 @@ int main() {
 
     struct sockaddr * peer_addr;
     socklen_t addr_len = sizeof(struct sockaddr);
-    getpeername(new_fd, peer_addr, &addr_len);
+    getpeername(new_sockfd, peer_addr, &addr_len);
 
     char peer_name[INET6_ADDRSTRLEN];
     addr_to_str(peer_addr, peer_name);
@@ -158,16 +158,16 @@ int main() {
       // send message
       char *msg = "welcome to the server\n";
       int len = strlen(msg);
-      int bytes_sent = send(new_fd, msg, len, 0);
+      int bytes_sent = send(new_sockfd, msg, len, 0);
       if (bytes_sent == -1) {
         printf("send: error");
         exit(1);
       }
-      close(new_fd);
+      close(new_sockfd);
       exit(0);
     }
 
-    close(new_fd);
+    close(new_sockfd);
   }
   return 0;
 }
