@@ -62,7 +62,7 @@ void signal_handler(int signum) {
 
 int main() {
 
-  struct addrinfo hints = {};
+  struct addrinfo hints;
   memset(&hints, 0, sizeof(hints));
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE;
@@ -70,6 +70,7 @@ int main() {
   int status;
   struct addrinfo *servinfo, *winner; // will point to results
 
+  // get ip address and port numbers for host server
   if ((status = getaddrinfo(NULL, MY_PORT, &hints, &servinfo)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
     return 1;
@@ -130,7 +131,7 @@ int main() {
   struct sockaddr_storage their_addr;
 
   while(1) {
-    socklen_t addr_size = sizeof their_addr;
+    socklen_t addr_size = sizeof(their_addr);
     int new_sockfd = accept(sockfd, (struct sockaddr *) &their_addr, &addr_size);
 
     if (new_sockfd == -1) {
@@ -163,10 +164,28 @@ int main() {
         printf("send: error");
         exit(1);
       }
+
+      // receive from connection
+      char *pong = "pong\n";
+      int pong_len = strlen(pong);
+      char ping_buf[1024];
+      int bytes_recv = 0;
+      while ((bytes_recv = recv(new_sockfd, ping_buf, sizeof(ping_buf), 0)) != 0) { // while connection is open
+        ping_buf[bytes_recv] = 0; // add null terimantor
+        printf("server: got %s", ping_buf);
+        fflush(NULL);
+        if (strncmp(ping_buf, "ping\n", 5) == 0) { // if ping is sent
+          if (send(new_sockfd, pong, pong_len + 1, 0) == -1) { // send pong
+            printf("send: error");
+            exit(1);
+          }
+        }
+      }
+      
+      fflush(NULL);
       close(new_sockfd);
       exit(0);
     }
-
     close(new_sockfd);
   }
   return 0;
