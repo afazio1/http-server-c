@@ -7,6 +7,9 @@ set(CMAKE_C_STANDARD 11)        # Use C11 standard
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)     # Enforce standard compliance
 
+# Export compile commands for LSP
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Enable debugging symbols
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_C_FLAGS_DEBUG "-g")
@@ -14,6 +17,7 @@ set(CMAKE_C_FLAGS_DEBUG "-g")
 # add source files
 set(SOURCES
     src/main.c
+    src/handle_client.c
 )
 
 # create the executable

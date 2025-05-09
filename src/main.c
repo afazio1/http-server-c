@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include "handle_client.h"
 
 #define QUEUE_SIZE 20
 #define MY_PORT "6969"
@@ -32,7 +33,7 @@ void addr_to_str(struct sockaddr * addr, char *res) {
 }
 
 void sigchld_handler() {
-  // Automatically reap all child processes
+  // Automatically reap all exited child processes
   while (waitpid(-1, NULL, WNOHANG) > 0);
 }
 
@@ -57,19 +58,22 @@ void signal_handler(int signum) {
     case SIGTERM:
       sigterm_handler();
       break;
+    case SIGINT:
+      sigterm_handler();
+      break;
   }
 }
 
-int main() {
-
+// Create server socket  
+// bind and listen on port
+int create_server_socket() {
   struct addrinfo hints;
   memset(&hints, 0, sizeof(hints));
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE;
 
+  struct addrinfo *servinfo, *server; // will point to results
   int status;
-  struct addrinfo *servinfo, *winner; // will point to results
-
   // get ip address and port numbers for host server
   if ((status = getaddrinfo(NULL, MY_PORT, &hints, &servinfo)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
@@ -81,36 +85,35 @@ int main() {
     return 1;
   }
 
-  winner = servinfo;
-
-  char ipstr[INET6_ADDRSTRLEN];
-  addr_to_str(servinfo->ai_addr, ipstr);
-
+  server = servinfo;
   // make a socket, bind it, listen on it
-  sockfd = socket(winner->ai_family, winner->ai_socktype, winner->ai_protocol);
+  sockfd = socket(server->ai_family, server->ai_socktype, server->ai_protocol);
 
   // allows us to reuse ip address and port 
   int yes;
   if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
-    printf("setsockopt: error");
+    printf("setsockopt: error: %d", errno);
     return 1;
   }
 
-  if (bind(sockfd, winner->ai_addr, winner->ai_addrlen) == -1) {
+  if (bind(sockfd, server->ai_addr, server->ai_addrlen) == -1) {
     printf("bind: error");
     return 1;
   }
-
-  freeaddrinfo(servinfo);
 
   if (listen(sockfd, QUEUE_SIZE) == -1) {
     printf("listen: error");
     return 1;
   }
 
+  char ipstr[INET6_ADDRSTRLEN];
+  addr_to_str(server->ai_addr, ipstr);
   printf("listening on %s:%s\n", ipstr, MY_PORT);
   fflush(NULL);
-
+  freeaddrinfo(servinfo);
+  return 0;
+}
+int init_signal_handler() {
   // Set up the signal handler using sigaction
   struct sigaction sa;
   sa.sa_handler = signal_handler;  // Set handler function
@@ -126,13 +129,34 @@ int main() {
     perror("Error setting up SIGTERM handler");
     return 1;
   }
+  return 0;
+}
+
+void print_client_ip(int new_socketfd) {
+    struct sockaddr * peer_addr;
+    socklen_t addr_len = sizeof(struct sockaddr);
+    getpeername(new_socketfd, peer_addr, &addr_len);
+
+    char peer_name[INET6_ADDRSTRLEN];
+    addr_to_str(peer_addr, peer_name);
+    printf("server: got connection from %s\n", peer_name);
+    fflush(NULL);
+}
+int main() {
+  if (create_server_socket() != 0) {
+    return 1;
+  }
+
+  if (init_signal_handler() != 0) {
+    return 1;
+  }
 
   // accept incoming connections
-  struct sockaddr_storage their_addr;
+  struct sockaddr_storage client_addr = {0};
 
   while(1) {
-    socklen_t addr_size = sizeof(their_addr);
-    int new_sockfd = accept(sockfd, (struct sockaddr *) &their_addr, &addr_size);
+    socklen_t addr_size = sizeof(client_addr);
+    int new_sockfd = accept(sockfd, (struct sockaddr *) &client_addr, &addr_size);
 
     if (new_sockfd == -1) {
       if (errno == EINTR) {
@@ -143,47 +167,14 @@ int main() {
       continue;
     }
 
-    struct sockaddr * peer_addr;
-    socklen_t addr_len = sizeof(struct sockaddr);
-    getpeername(new_sockfd, peer_addr, &addr_len);
-
-    char peer_name[INET6_ADDRSTRLEN];
-    addr_to_str(peer_addr, peer_name);
-    printf("server: got connection from %s\n", peer_name);
-    fflush(NULL);
+    print_client_ip(new_sockfd);
 
     // handle connection in child process
     if (fork() == 0) { // in child
       close(sockfd); // child doesn't need listener
-
-      // send message
-      char *msg = "welcome to the server\n";
-      int len = strlen(msg);
-      int bytes_sent = send(new_sockfd, msg, len, 0);
-      if (bytes_sent == -1) {
-        printf("send: error");
+      if (handle_client(new_sockfd) != 0) {
         exit(1);
       }
-
-      // receive from connection
-      char *pong = "pong\n";
-      int pong_len = strlen(pong);
-      char ping_buf[1024];
-      int bytes_recv = 0;
-      while ((bytes_recv = recv(new_sockfd, ping_buf, sizeof(ping_buf), 0)) != 0) { // while connection is open
-        ping_buf[bytes_recv] = 0; // add null terimantor
-        printf("server: got %s", ping_buf);
-        fflush(NULL);
-        if (strncmp(ping_buf, "ping\n", 5) == 0) { // if ping is sent
-          if (send(new_sockfd, pong, pong_len + 1, 0) == -1) { // send pong
-            printf("send: error");
-            exit(1);
-          }
-        }
-      }
-      
-      fflush(NULL);
-      close(new_sockfd);
       exit(0);
     }
     close(new_sockfd);
