@@ -16,6 +16,7 @@
 
 typedef struct {
   char *method;
+  char *uri;
   char *host;
   char *user_agent;
 } http_req_t;
@@ -38,19 +39,26 @@ int parse_http_request(char * msg, http_req_t *req) {
   char *saveptr;
   char *line = strtok_r(msg, CRLF, &saveptr);
    
-  // parse first line by space
+  // parse tokens in first line by space
+  // parse method
   char *first_token_ptr;
-  char *token = strtok_r(line, " ", &first_token_ptr);
-  size_t token_len = strlen(token);
-  req->method = calloc(token_len + 1, sizeof(char));
+  char *first_token = strtok_r(line, " ", &first_token_ptr);
+  size_t first_token_len = strlen(first_token);
+  req->method = calloc(first_token_len + 1, sizeof(char));
   if (req->method == NULL) return 1;
-  strncpy(req->method, token, token_len + 1);
+  strncpy(req->method, first_token, first_token_len + 1);
+
+  // parse uri
+  char *second_token = strtok_r(NULL, " ", &first_token_ptr);
+  size_t second_token_len = strlen(second_token);
+  req->uri = calloc(second_token_len + 1, sizeof(char));
+  if (req->uri == NULL) return 1;
+  strncpy(req->uri, second_token, second_token_len + 1);
 
   char *field;
   while (line != NULL) {
     // get line
     line = strtok_r(NULL, CRLF, &saveptr);
-
     // get tokens in line
     char *token_ptr;
     char *token = strtok_r(line, " ", &token_ptr);
@@ -83,6 +91,22 @@ int parse_http_request(char * msg, http_req_t *req) {
 void create_http_request() {
 
 }
+long get_fsize(FILE *fd) {
+  if (fseek(fd, 0, SEEK_END) == -1) {
+    fclose(fd);
+    printf("error seeking file: %d\n", errno);
+    return 1;
+  }
+  long fsize = ftell(fd);
+  if (fsize == -1) {
+    fclose(fd);
+    printf("error telling file: %d\n", errno);
+    return 1;
+  }
+  rewind(fd);
+  return fsize;
+}
+
 // HTTP/1.1
 int handle_client(int client_sock) {
   // recv request
@@ -93,29 +117,64 @@ int handle_client(int client_sock) {
       return 1;
     }
     buf[bytes_recv] = 0;
-    // TODO: parse request
     http_req_t req = {0};
     if (parse_http_request(buf, &req) == 1) {
       return 1;
     }
     // TODO: get rid of this
     printf("Method: %s\n", req.method);
+    printf("URI: %s\n", req.uri);
     printf("Host: %s\n", req.host);
     printf("User-Agent: %s\n", req.user_agent);
     fflush(NULL);
+    // get file based on uri
+    char* filename = "";
+    if (strncmp(req.uri, "/", 1) == 0) {
+      filename = "index.html";
+    }
+    char temp[100];
+    snprintf(temp, sizeof(temp), "../html%s%s", req.uri, filename);
+    req.uri = realloc(req.uri, strlen(temp) + 1);
+    strncpy(req.uri, temp, strlen(temp) + 1);
+    printf("%s\n", req.uri);
+    fflush(NULL);
+    FILE *fd = fopen(req.uri, "r");
+    if (fd == NULL) {
+      printf("error opening file: %d\n", errno);
+      return 1;
+    }
+    // get size of file
+    long fsize = get_fsize(fd);
+
+    // allocate memory for it
+    char* page_buf = calloc(fsize + 1, sizeof(char));
+    if (page_buf == NULL) {
+      fclose(fd);
+      return 1;
+    }
+    // read the file into buffer
+    fread(page_buf, sizeof(char), fsize, fd);
+    page_buf[fsize] = 0;
+
+    // close file
+    fclose(fd);
+    // TODO: remove printfs
+    printf("%s\n", page_buf);
+    fflush(NULL);
+
+    // TODO: send a response back
     /*int bytes_sent = send(client_sock, buf, bytes_recv, 0);*/
     /*if (bytes_sent == -1) {*/
     /*  return 1;*/
     /*}*/
+
+    if (req.uri != 0) free(req.uri);
     if (req.method != 0) free(req.method);
     if (req.host != 0) free(req.host);
     if (req.user_agent != 0) free(req.user_agent);
 
   }
-  // TODO: read data
-  // TODO: do something
-  // TODO: send a response back
-
+   
   close(client_sock);
   return 0;
 } 
