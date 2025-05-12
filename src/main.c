@@ -133,12 +133,12 @@ int init_signal_handler() {
 }
 
 void print_client_ip(int new_socketfd) {
-    struct sockaddr * peer_addr;
+    struct sockaddr peer_addr = {0};
     socklen_t addr_len = sizeof(struct sockaddr);
-    getpeername(new_socketfd, peer_addr, &addr_len);
+    getpeername(new_socketfd, &peer_addr, &addr_len);
 
     char peer_name[INET6_ADDRSTRLEN];
-    addr_to_str(peer_addr, peer_name);
+    addr_to_str(&peer_addr, peer_name);
     printf("server: got connection from %s\n", peer_name);
     fflush(NULL);
 }
