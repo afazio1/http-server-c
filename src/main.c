@@ -1,4 +1,3 @@
-#include "stdio.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -6,7 +5,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netdb.h>
-#include "string.h"
+#include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -172,7 +171,7 @@ int main() {
     // handle connection in child process
     if (fork() == 0) { // in child
       close(sockfd); // child doesn't need listener
-      if (handle_client(new_sockfd) != 0) {
+      if (handle_client(new_sockfd) == -1) {
         exit(1);
       }
       exit(0);

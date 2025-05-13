@@ -1,8 +1,6 @@
-#include "stdio.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
-#include "string.h"
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -13,6 +11,8 @@
 
 #define BUFFER_SIZE 4096
 #define CRLF "\r\n"
+#define INT32_DIGITS 32
+#define INDEX_FILENAME "index.html"
 
 void cleanup(char **buf) {
   // free(NULL) no operation is performed
@@ -51,7 +51,7 @@ int parse_http_request(char * msg, http_req_t *req) {
   char *first_token = strtok_r(line, " ", &first_token_ptr);
   size_t first_token_len = strlen(first_token);
   req->method = calloc(first_token_len + 1, sizeof(char));
-  if (req->method == NULL) return 1;
+  if (req->method == NULL) return -1;
   strncpy(req->method, first_token, first_token_len + 1);
 
   // parse uri
@@ -104,7 +104,7 @@ free_stuff:
   cleanup(&req->uri);
   cleanup(&req->host);
   cleanup(&req->user_agent);
-  return 1;
+  return -1;
 }
 
 char * create_http_response(char **content, http_res_t *res) {
@@ -132,7 +132,7 @@ char * create_http_response(char **content, http_res_t *res) {
   strcat(res_str, res->content_type);
   strcat(res_str, CRLF);
   strcat(res_str, "Content-Length: ");
-  char* content_len_str = calloc(32, sizeof(char)); 
+  char* content_len_str = calloc(INT32_DIGITS + 1, sizeof(char)); // 32 digits + 1 for null terminator
   if (content_len_str == NULL) {
     return NULL;
   }
@@ -149,13 +149,13 @@ long get_fsize(FILE *fd) {
   if (fseek(fd, 0, SEEK_END) == -1) {
     fclose(fd);
     printf("error seeking file: %d\n", errno);
-    return 1;
+    return -1;
   }
   long fsize = ftell(fd);
   if (fsize == -1) {
     fclose(fd);
     printf("error telling file: %d\n", errno);
-    return 1;
+    return -1;
   }
   rewind(fd);
   return fsize;
@@ -168,28 +168,31 @@ int handle_client(int client_sock) {
   int bytes_recv = 0;
   while ((bytes_recv = recv(client_sock, buf, sizeof(buf), 0)) != 0) { // gets msg up to BUFFER_SIZE bytes
     if (bytes_recv == -1) {
-      return 1;
+      return -1;
     }
     buf[bytes_recv] = 0;
     http_req_t req = {0};
     if (parse_http_request(buf, &req) == 1) {
-      return 1;
+      return -1;
     }
     // get file based on uri
     char* filename = "";
     if (strncmp(req.uri, "/", 1) == 0) {
-      filename = "index.html";
+      filename = INDEX_FILENAME;
     }
     char temp[100];
     snprintf(temp, sizeof(temp), "../html%s%s", req.uri, filename);
     req.uri = realloc(req.uri, strlen(temp) + 1);
     strncpy(req.uri, temp, strlen(temp) + 1);
-    /*printf("%s\n", req.uri);*/
-    /*fflush(NULL);*/
+
     FILE *fd = fopen(req.uri, "r");
     if (fd == NULL) {
       printf("error opening file: %d\n", errno);
-      return 1;
+      cleanup(&req.method);
+      cleanup(&req.uri);
+      cleanup(&req.host);
+      cleanup(&req.user_agent);
+      return -1;
     }
     // get size of file
     long fsize = get_fsize(fd);
@@ -198,10 +201,23 @@ int handle_client(int client_sock) {
     char* page_buf = calloc(fsize + 1, sizeof(char));
     if (page_buf == NULL) {
       fclose(fd);
-      return 1;
+      cleanup(&req.method);
+      cleanup(&req.uri);
+      cleanup(&req.host);
+      cleanup(&req.user_agent);
+      return -1;
     }
     // read the file into buffer
     fread(page_buf, sizeof(char), fsize, fd);
+    if (ferror(fd) != 0) {
+      fclose(fd);
+      cleanup(&req.method);
+      cleanup(&req.uri);
+      cleanup(&req.host);
+      cleanup(&req.user_agent);
+      cleanup(&page_buf);
+      return -1;
+    }
     page_buf[fsize] = 0;
 
     // close file
@@ -212,21 +228,32 @@ int handle_client(int client_sock) {
     char* res_str = create_http_response(&page_buf, &res);
     if (res_str == NULL) {
       printf("error creating response: %d\n", errno);
-      return 1;
+      cleanup(&req.method);
+      cleanup(&req.uri);
+      cleanup(&req.host);
+      cleanup(&req.user_agent);
+      cleanup(&page_buf);
+      return -1;
     }
     printf("%s\n", res_str);
     fflush(NULL);
     int bytes_sent = send(client_sock, res_str, strlen(res_str), 0);
     if (bytes_sent == -1) {
-      return 1;
+      cleanup(&req.method);
+      cleanup(&req.uri);
+      cleanup(&req.host);
+      cleanup(&req.user_agent);
+      cleanup(&page_buf);
+      cleanup(&res_str);
+      return -1;
     }
     
-    cleanup(&page_buf);
-    cleanup(&res_str);
     cleanup(&req.method);
     cleanup(&req.uri);
     cleanup(&req.host);
     cleanup(&req.user_agent);
+    cleanup(&page_buf);
+    cleanup(&res_str);
   }
   printf("Closed client socket\n");
   close(client_sock);
