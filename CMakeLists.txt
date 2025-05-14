@@ -18,6 +18,8 @@ set(CMAKE_C_FLAGS_DEBUG "-g")
 set(SOURCES
     src/main.c
     src/handle_client.c
+    src/network.c
+    src/sig_utils.c
 )
 
 # create the executable
