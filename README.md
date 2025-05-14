@@ -7,6 +7,7 @@
 ```
 ## Build
 
+Note: may need to run `cmake` outside Docker container for `compile_commands.json` to work with LSP
 ```sh
 cmake .. # generate build system
 make # build + compile
