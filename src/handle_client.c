@@ -44,7 +44,7 @@ int parse_http_request(char * msg, http_req_t *req) {
   // parse each line using CRLF
   char *saveptr;
   char *line = strtok_r(msg, CRLF, &saveptr);
-   
+
   // parse tokens in first line by space
   // parse method
   char *first_token_ptr;
@@ -70,7 +70,7 @@ int parse_http_request(char * msg, http_req_t *req) {
     // get tokens in line
     char *token_ptr;
     char *token = strtok_r(line, " ", &token_ptr);
-    
+
     while (token != NULL) {
       // this is a key
       size_t token_len = strlen(token);
@@ -119,7 +119,7 @@ char * create_http_response(char **content, http_res_t *res) {
 
   res->content_length = strlen(*content);
   res->content_type = "text/html";
-  
+
   // create the res string
   char* res_str = calloc(res->content_length + 100, sizeof(char));
   strcat(res_str, res->status_line.version);
@@ -247,7 +247,7 @@ int handle_client(int client_sock) {
       cleanup(&res_str);
       return -1;
     }
-    
+
     cleanup(&req.method);
     cleanup(&req.uri);
     cleanup(&req.host);

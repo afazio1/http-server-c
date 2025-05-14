@@ -1,1 +1,1 @@
-int handle_client(int);
+int handle_client(int client_sock);
