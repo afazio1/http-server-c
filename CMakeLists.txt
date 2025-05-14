@@ -26,7 +26,7 @@ set(SOURCES
 add_executable(web_server ${SOURCES})
 
 # include directories
-target_include_directories(web_server PRIVATE src)
+target_include_directories(web_server PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 # had to add this so networking functions work
 add_compile_definitions(_POSIX_C_SOURCE=200112L)
