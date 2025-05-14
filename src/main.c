@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <sys/socket.h>
 #include "sig_utils.h"
 #include "network.h"
 #include "handle_client.h"
